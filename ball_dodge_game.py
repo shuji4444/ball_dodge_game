@@ -199,7 +199,7 @@ def game(difficulty_level):
         
         # Draw player
         if not game_over:
-            pygame.draw.circle(screen, BLUE, player_pos, player_radius)
+            pygame.draw.circle(screen, WHITE, player_pos, player_radius)
         
         # Display score
         score_text = font.render(f"Score: {score}", True, WHITE)
