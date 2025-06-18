@@ -21,6 +21,8 @@ GREEN = (0, 255, 0)
 YELLOW = (255, 255, 0)
 ORANGE = (255, 165, 0)
 PURPLE = (128, 0, 128)
+CYAN = (0, 255, 255)
+GOLD = (255, 215, 0)
 
 # Player settings
 player_radius = 15
@@ -56,7 +58,7 @@ class Ball:
             self.color = PURPLE
             self.speed = 1  # Homing balls are slower
 
-    def update(self):
+    def update(self, time_factor=1.0):
         if self.is_homing and self.player_pos:
             # Calculate direction towards player
             dx = self.player_pos[0] - self.x
@@ -64,14 +66,66 @@ class Ball:
             distance = max(1, math.sqrt(dx*dx + dy*dy))  # Avoid division by zero
             
             # Normalize and apply speed
-            self.x += (dx / distance) * self.speed
-            self.y += self.speed
+            self.x += (dx / distance) * self.speed * time_factor
+            self.y += self.speed * time_factor
         else:
             # Normal vertical movement
-            self.y += self.speed
+            self.y += self.speed * time_factor
     
     def draw(self, surface):
         pygame.draw.circle(surface, self.color, (int(self.x), int(self.y)), self.radius)
+
+# PowerUp class
+class PowerUp:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.radius = 15
+        self.type = random.choice(["invincible", "slow", "reflect", "speed"])
+        self.active = True
+        self.speed = 2
+        
+        # Set color based on power-up type
+        if self.type == "invincible":
+            self.color = GOLD
+        elif self.type == "slow":
+            self.color = CYAN
+        elif self.type == "reflect":
+            self.color = ORANGE
+        elif self.type == "speed":
+            self.color = YELLOW
+    
+    def update(self):
+        self.y += self.speed
+    
+    def draw(self, surface):
+        if not self.active:
+            return
+            
+        # Draw power-up circle
+        pygame.draw.circle(surface, self.color, (int(self.x), int(self.y)), self.radius)
+        
+        # Draw icon inside based on type
+        if self.type == "invincible":
+            # Draw a star shape
+            pygame.draw.circle(surface, WHITE, (int(self.x), int(self.y)), self.radius // 2)
+        elif self.type == "slow":
+            # Draw a clock shape
+            pygame.draw.circle(surface, WHITE, (int(self.x), int(self.y)), self.radius // 2, 2)
+            # Clock hands
+            pygame.draw.line(surface, WHITE, (self.x, self.y), (self.x, self.y - self.radius // 2), 2)
+            pygame.draw.line(surface, WHITE, (self.x, self.y), (self.x + self.radius // 3, self.y), 2)
+        elif self.type == "reflect":
+            # Draw a shield shape
+            pygame.draw.polygon(surface, WHITE, [
+                (self.x, self.y - self.radius // 2),
+                (self.x - self.radius // 2, self.y + self.radius // 3),
+                (self.x + self.radius // 2, self.y + self.radius // 3)
+            ])
+        elif self.type == "speed":
+            # Draw a lightning bolt
+            pygame.draw.line(surface, WHITE, (self.x - self.radius // 3, self.y - self.radius // 2),
+                            (self.x + self.radius // 3, self.y + self.radius // 2), 2)
 
 # Start screen
 def start_screen():
@@ -111,33 +165,52 @@ def start_screen():
 def game(difficulty_level):
     # Game variables
     balls = []
+    powerups = []
     score = 0
     start_time = time.time()
     last_score_update = start_time
     ball_spawn_timer = 0
     homing_ball_timer = 0
+    powerup_timer = 0
     game_over = False
     clock = pygame.time.Clock()
     
+    # Dynamic difficulty variables
+    player_skill = 0.5  # Start at medium skill level (0.0 to 1.0)
+    near_miss_count = 0
+    last_near_miss_check = time.time()
+    
+    # Power-up status
+    active_powerups = {
+        "invincible": {"active": False, "end_time": 0},
+        "slow": {"active": False, "end_time": 0},
+        "reflect": {"active": False, "end_time": 0},
+        "speed": {"active": False, "end_time": 0}
+    }
+    
     # Set difficulty parameters
     if difficulty_level == "normal":
-        difficulty_multiplier = 1.0
+        base_difficulty_multiplier = 1.0
         homing_ball_threshold = 0.5  # When to start spawning homing balls
         max_difficulty = 0.9
         difficulty_time = 60  # Seconds to reach max difficulty
     else:  # Hard mode
-        difficulty_multiplier = 1.5
+        base_difficulty_multiplier = 1.5
         homing_ball_threshold = 0.3  # Earlier homing balls
         max_difficulty = 1.0
         difficulty_time = 45  # Reach max difficulty faster
     
     # Font settings
     font = pygame.font.SysFont(None, 36)
+    small_font = pygame.font.SysFont(None, 24)
     
     while True:
         current_time = time.time()
         elapsed_time = current_time - start_time
-        difficulty = min(max_difficulty, elapsed_time / difficulty_time) * difficulty_multiplier
+        
+        # Calculate dynamic difficulty based on time and player skill
+        time_difficulty = min(max_difficulty, elapsed_time / difficulty_time)
+        difficulty = time_difficulty * base_difficulty_multiplier * (0.8 + player_skill * 0.4)
         
         # Score update (10 points per second)
         if current_time - last_score_update >= 1 and not game_over:
@@ -155,6 +228,17 @@ def game(difficulty_level):
         # Get mouse position
         if not game_over:
             player_pos[0], player_pos[1] = pygame.mouse.get_pos()
+        
+        # Check for near misses (balls passing close to player)
+        if current_time - last_near_miss_check >= 0.5:  # Check every half second
+            last_near_miss_check = current_time
+            for ball in balls:
+                distance = ((player_pos[0] - ball.x) ** 2 + (player_pos[1] - ball.y) ** 2) ** 0.5
+                if player_radius + ball.radius < distance < player_radius + ball.radius + 30:
+                    near_miss_count += 1
+                    # Increase player skill rating based on near misses
+                    if near_miss_count % 5 == 0:
+                        player_skill = min(1.0, player_skill + 0.05)
         
         # New ball generation (adjust frequency based on difficulty)
         ball_spawn_timer += 1
@@ -175,8 +259,21 @@ def game(difficulty_level):
                 new_homing_ball = Ball(random.randint(0, WIDTH), difficulty, is_homing=True, player_pos=player_pos)
                 balls.append(new_homing_ball)
         
+        # Power-up generation
+        powerup_timer += 1
+        powerup_spawn_rate = 300  # Spawn power-up every ~5 seconds
+        
+        if powerup_timer >= powerup_spawn_rate and not game_over:
+            powerup_timer = 0
+            if random.random() < 0.7:  # 70% chance to spawn a power-up
+                new_powerup = PowerUp(random.randint(50, WIDTH - 50), 0)
+                powerups.append(new_powerup)
+        
         # Clear screen
         screen.fill(BLACK)
+        
+        # Calculate time factor for ball speed (for slow power-up)
+        time_factor = 0.5 if active_powerups["slow"]["active"] else 1.0
         
         # Update and draw balls
         for ball in balls[:]:
@@ -184,7 +281,7 @@ def game(difficulty_level):
             if ball.is_homing:
                 ball.player_pos = player_pos
             
-            ball.update()
+            ball.update(time_factor)
             ball.draw(screen)
             
             # Remove balls that are off-screen
@@ -195,11 +292,74 @@ def game(difficulty_level):
             if not game_over:
                 distance = ((player_pos[0] - ball.x) ** 2 + (player_pos[1] - ball.y) ** 2) ** 0.5
                 if distance < player_radius + ball.radius:
-                    game_over = True
+                    if active_powerups["invincible"]["active"]:
+                        # Invincible - remove the ball
+                        balls.remove(ball)
+                    elif active_powerups["reflect"]["active"]:
+                        # Reflect - bounce the ball away
+                        dx = ball.x - player_pos[0]
+                        dy = ball.y - player_pos[1]
+                        angle = math.atan2(dy, dx)
+                        ball.x = player_pos[0] + math.cos(angle) * (player_radius + ball.radius + 5)
+                        ball.y = player_pos[1] + math.sin(angle) * (player_radius + ball.radius + 5)
+                        # Add some random velocity
+                        ball.speed = random.randint(5, 8)
+                    else:
+                        game_over = True
         
-        # Draw player
+        # Update and draw power-ups
+        for powerup in powerups[:]:
+            powerup.update()
+            powerup.draw(screen)
+            
+            # Remove power-ups that are off-screen
+            if powerup.y > HEIGHT + powerup.radius:
+                powerups.remove(powerup)
+                continue
+            
+            # Collision detection with player
+            if not game_over and powerup.active:
+                distance = ((player_pos[0] - powerup.x) ** 2 + (player_pos[1] - powerup.y) ** 2) ** 0.5
+                if distance < player_radius + powerup.radius:
+                    # Activate power-up
+                    powerup_type = powerup.type
+                    active_powerups[powerup_type]["active"] = True
+                    active_powerups[powerup_type]["end_time"] = current_time + 5  # 5 seconds duration
+                    
+                    # Add bonus points for collecting power-up
+                    score += 50
+                    
+                    # Remove collected power-up
+                    powerup.active = False
+                    powerups.remove(powerup)
+        
+        # Check and deactivate expired power-ups
+        for powerup_type, status in active_powerups.items():
+            if status["active"] and current_time > status["end_time"]:
+                status["active"] = False
+        
+        # Draw player with visual effects based on active power-ups
         if not game_over:
+            # Base player circle
             pygame.draw.circle(screen, WHITE, player_pos, player_radius)
+            
+            # Visual effects for active power-ups
+            if active_powerups["invincible"]["active"]:
+                # Gold aura for invincibility
+                pygame.draw.circle(screen, GOLD, player_pos, player_radius + 5, 2)
+                pygame.draw.circle(screen, GOLD, player_pos, player_radius + 8, 1)
+            
+            if active_powerups["reflect"]["active"]:
+                # Orange shield for reflect
+                pygame.draw.circle(screen, ORANGE, player_pos, player_radius + 3, 2)
+            
+            if active_powerups["speed"]["active"]:
+                # Yellow trail for speed
+                pygame.draw.circle(screen, YELLOW, player_pos, player_radius - 5)
+            
+            if active_powerups["slow"]["active"]:
+                # Cyan ripple for slow time
+                pygame.draw.circle(screen, CYAN, player_pos, player_radius + 10, 1)
         
         # Display score
         score_text = font.render(f"Score: {score}", True, WHITE)
@@ -209,10 +369,37 @@ def game(difficulty_level):
         time_text = font.render(f"Time: {int(elapsed_time)}s", True, WHITE)
         screen.blit(time_text, (10, 50))
         
-        # Display difficulty level
+        # Display difficulty level and dynamic difficulty
         diff_text = font.render(f"Mode: {'Normal' if difficulty_level == 'normal' else 'Hard'}", True, 
                                GREEN if difficulty_level == "normal" else RED)
         screen.blit(diff_text, (WIDTH - 150, 10))
+        
+        # Display dynamic difficulty meter
+        diff_meter_text = small_font.render(f"Difficulty: {difficulty:.2f}", True, 
+                                          YELLOW if difficulty > 0.7 else GREEN)
+        screen.blit(diff_meter_text, (WIDTH - 150, 50))
+        
+        # Display active power-ups
+        powerup_y = 90
+        for powerup_type, status in active_powerups.items():
+            if status["active"]:
+                time_left = int(status["end_time"] - current_time)
+                if powerup_type == "invincible":
+                    color = GOLD
+                    name = "Invincible"
+                elif powerup_type == "slow":
+                    color = CYAN
+                    name = "Time Slow"
+                elif powerup_type == "reflect":
+                    color = ORANGE
+                    name = "Reflect"
+                elif powerup_type == "speed":
+                    color = YELLOW
+                    name = "Speed Up"
+                
+                powerup_text = small_font.render(f"{name}: {time_left}s", True, color)
+                screen.blit(powerup_text, (WIDTH - 150, powerup_y))
+                powerup_y += 25
         
         # Game over display
         if game_over:
