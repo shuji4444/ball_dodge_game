@@ -1,38 +1,41 @@
-import pygame
-import sys
-import random
-import time
 import math
+import random
+import sys
+import time
+from typing import Any, Dict, List, Optional, Tuple
+
+import pygame
 from pygame import Surface, gfxdraw
 
 # Game initialization
 pygame.init()
 
 # Screen settings
-WIDTH, HEIGHT = 800, 600
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
+WIDTH: int = 800
+HEIGHT: int = 600
+screen: Surface = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("COSMIC DODGE")
 
 # Color definitions
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-RED = (255, 0, 0)
-BLUE = (0, 0, 255)
-GREEN = (0, 255, 0)
-YELLOW = (255, 255, 0)
-ORANGE = (255, 165, 0)
-PURPLE = (128, 0, 128)
-CYAN = (0, 255, 255)
-GOLD = (255, 215, 0)
-PINK = (255, 105, 180)
-NEON_GREEN = (57, 255, 20)
-NEON_BLUE = (0, 191, 255)
-DARK_BLUE = (0, 0, 100)
-DARK_PURPLE = (48, 25, 52)
+WHITE: Tuple[int, int, int] = (255, 255, 255)
+BLACK: Tuple[int, int, int] = (0, 0, 0)
+RED: Tuple[int, int, int] = (255, 0, 0)
+BLUE: Tuple[int, int, int] = (0, 0, 255)
+GREEN: Tuple[int, int, int] = (0, 255, 0)
+YELLOW: Tuple[int, int, int] = (255, 255, 0)
+ORANGE: Tuple[int, int, int] = (255, 165, 0)
+PURPLE: Tuple[int, int, int] = (128, 0, 128)
+CYAN: Tuple[int, int, int] = (0, 255, 255)
+GOLD: Tuple[int, int, int] = (255, 215, 0)
+PINK: Tuple[int, int, int] = (255, 105, 180)
+NEON_GREEN: Tuple[int, int, int] = (57, 255, 20)
+NEON_BLUE: Tuple[int, int, int] = (0, 191, 255)
+DARK_BLUE: Tuple[int, int, int] = (0, 0, 100)
+DARK_PURPLE: Tuple[int, int, int] = (48, 25, 52)
 
 # Background colors for space effect
-BG_COLOR = (5, 5, 15)
-STAR_COLORS = [
+BG_COLOR: Tuple[int, int, int] = (5, 5, 15)
+STAR_COLORS: List[Tuple[int, int, int]] = [
     (150, 150, 150),  # Dim white
     (200, 200, 255),  # Light blue
     (255, 255, 255),  # Bright white
@@ -40,11 +43,12 @@ STAR_COLORS = [
 ]
 
 # Load sound effects
+sound_enabled: bool = False
 try:
     pygame.mixer.init()
-    explosion_sound = pygame.mixer.Sound("explosion.wav")
-    powerup_sound = pygame.mixer.Sound("powerup.wav")
-    game_over_sound = pygame.mixer.Sound("gameover.wav")
+    explosion_sound: pygame.mixer.Sound = pygame.mixer.Sound("explosion.wav")
+    powerup_sound: pygame.mixer.Sound = pygame.mixer.Sound("powerup.wav")
+    game_over_sound: pygame.mixer.Sound = pygame.mixer.Sound("gameover.wav")
     # Set default volume
     explosion_sound.set_volume(0.3)
     powerup_sound.set_volume(0.5)
@@ -56,24 +60,28 @@ except:
 
 # Particle effects
 class Particle:
-    def __init__(self, x, y, color, velocity=None, size=2, life=30, gravity=False):
-        self.x = x
-        self.y = y
-        self.color = color
-        self.size = size
-        self.life = life
-        self.max_life = life
-        self.gravity = gravity
+    def __init__(self, x: float, y: float, color: Tuple[int, int, int], 
+                 velocity: Optional[Tuple[float, float]] = None, 
+                 size: float = 2, life: int = 30, gravity: bool = False):
+        self.x: float = x
+        self.y: float = y
+        self.color: Tuple[int, int, int] = color
+        self.size: float = size
+        self.life: int = life
+        self.max_life: int = life
+        self.gravity: bool = gravity
+        self.vx: float = 0.0
+        self.vy: float = 0.0
         
         if velocity:
             self.vx, self.vy = velocity
         else:
-            angle = random.uniform(0, math.pi * 2)
-            speed = random.uniform(0.5, 2.0)
+            angle: float = random.uniform(0, math.pi * 2)
+            speed: float = random.uniform(0.5, 2.0)
             self.vx = math.cos(angle) * speed
             self.vy = math.sin(angle) * speed
     
-    def update(self):
+    def update(self) -> None:
         self.x += self.vx
         self.y += self.vy
         
@@ -83,16 +91,16 @@ class Particle:
         self.life -= 1
         
         # Fade out based on remaining life
-        fade_factor = self.life / self.max_life
-        r = min(255, int(self.color[0] * fade_factor))
-        g = min(255, int(self.color[1] * fade_factor))
-        b = min(255, int(self.color[2] * fade_factor))
+        fade_factor: float = self.life / self.max_life
+        r: int = min(255, int(self.color[0] * fade_factor))
+        g: int = min(255, int(self.color[1] * fade_factor))
+        b: int = min(255, int(self.color[2] * fade_factor))
         self.color = (r, g, b)
     
-    def draw(self, surface: Surface):
-        alpha = int(255 * (self.life / self.max_life))
+    def draw(self, surface: Surface) -> None:
+        alpha: int = int(255 * (self.life / self.max_life))
         if self.size <= 1:
-            pygame.draw.circle(surface, self.color, (int(self.x), int(self.y)), self.size)
+            pygame.draw.circle(surface, self.color, (int(self.x), int(self.y)), int(self.size))
         else:
             # Use anti-aliased circle for smoother particles
             gfxdraw.aacircle(surface, int(self.x), int(self.y), int(self.size), self.color)
@@ -101,25 +109,25 @@ class Particle:
 # Star class for background
 class Star:
     def __init__(self):
-        self.x = random.randint(0, WIDTH)
-        self.y = random.randint(0, HEIGHT)
-        self.size = random.choice([1, 1, 1, 2, 2, 3])  # Mostly small stars
-        self.color = random.choice(STAR_COLORS)
-        self.speed = self.size * 0.2  # Larger stars move faster (parallax effect)
-        self.twinkle_speed = random.uniform(0.01, 0.05)
-        self.brightness = random.uniform(0.5, 1.0)
-        self.max_brightness = random.uniform(0.8, 1.0)
-        self.min_brightness = random.uniform(0.3, 0.6)
-        self.brightening = True
+        self.x: float = float(random.randint(0, WIDTH))
+        self.y: float = float(random.randint(0, HEIGHT))
+        self.size: int = random.choice([1, 1, 1, 2, 2, 3])  # Mostly small stars
+        self.color: Tuple[int, int, int] = random.choice(STAR_COLORS)
+        self.speed: float = self.size * 0.2  # Larger stars move faster (parallax effect)
+        self.twinkle_speed: float = random.uniform(0.01, 0.05)
+        self.brightness: float = random.uniform(0.5, 1.0)
+        self.max_brightness: float = random.uniform(0.8, 1.0)
+        self.min_brightness: float = random.uniform(0.3, 0.6)
+        self.brightening: bool = True
     
-    def update(self):
+    def update(self) -> None:
         # Move star down to create scrolling effect
         self.y += self.speed
         
         # Reset position if off screen
         if self.y > HEIGHT:
             self.y = 0
-            self.x = random.randint(0, WIDTH)
+            self.x = float(random.randint(0, WIDTH))
         
         # Twinkle effect
         if self.brightening:
@@ -131,12 +139,12 @@ class Star:
             if self.brightness <= self.min_brightness:
                 self.brightening = True
     
-    def draw(self, surface):
+    def draw(self, surface: Surface) -> None:
         # Apply brightness to color
-        r = min(255, int(self.color[0] * self.brightness))
-        g = min(255, int(self.color[1] * self.brightness))
-        b = min(255, int(self.color[2] * self.brightness))
-        color = (r, g, b)
+        r: int = min(255, int(self.color[0] * self.brightness))
+        g: int = min(255, int(self.color[1] * self.brightness))
+        b: int = min(255, int(self.color[2] * self.brightness))
+        color: Tuple[int, int, int] = (r, g, b)
         
         if self.size == 1:
             surface.set_at((int(self.x), int(self.y)), color)
@@ -145,25 +153,25 @@ class Star:
 
 # Player class
 class Player:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-        self.radius = 15
-        self.color = WHITE
-        self.trail = []
-        self.max_trail = 10
-        self.angle = 0  # For ship rotation
-        self.thruster_particles = []
-        self.shield_angle = 0
-        self.engine_flicker = 0
+    def __init__(self, x: float, y: float):
+        self.x: float = x
+        self.y: float = y
+        self.radius: int = 15
+        self.color: Tuple[int, int, int] = WHITE
+        self.trail: List[Tuple[float, float]] = []
+        self.max_trail: int = 10
+        self.angle: float = 0.0  # For ship rotation
+        self.thruster_particles: List[Particle] = []
+        self.shield_angle: float = 0.0
+        self.engine_flicker: int = 0
     
-    def update(self, target_x, target_y, speed_boost=False):
+    def update(self, target_x: float, target_y: float, speed_boost: bool = False) -> None:
         # Calculate direction to mouse
-        dx = target_x - self.x
-        dy = target_y - self.y
+        dx: float = target_x - self.x
+        dy: float = target_y - self.y
         
         # Smooth movement with optional speed boost
-        move_speed = 0.3 if speed_boost else 0.2
+        move_speed: float = 0.3 if speed_boost else 0.2
         self.x += dx * move_speed
         self.y += dy * move_speed
         
@@ -181,22 +189,22 @@ class Player:
         # Create thruster particles
         if random.random() < (0.5 if speed_boost else 0.3):  # More particles when boosting
             # Calculate thruster position (back of the ship)
-            thruster_x = self.x - math.cos(self.angle) * self.radius
-            thruster_y = self.y - math.sin(self.angle) * self.radius
+            thruster_x: float = self.x - math.cos(self.angle) * self.radius
+            thruster_y: float = self.y - math.sin(self.angle) * self.radius
             
             # Add some randomness to thruster position
             thruster_x += random.uniform(-3, 3)
             thruster_y += random.uniform(-3, 3)
             
             # Create particle with velocity opposite to ship direction
-            vel_x = -math.cos(self.angle) * random.uniform(1, 3)
-            vel_y = -math.sin(self.angle) * random.uniform(1, 3)
+            vel_x: float = -math.cos(self.angle) * random.uniform(1, 3)
+            vel_y: float = -math.sin(self.angle) * random.uniform(1, 3)
             
             # Random thruster color
-            thruster_color = random.choice([ORANGE, YELLOW, RED])
+            thruster_color: Tuple[int, int, int] = random.choice([ORANGE, YELLOW, RED])
             
             # Larger particles when boosting
-            size_range = (1.5, 4) if speed_boost else (1, 3)
+            size_range: Tuple[float, float] = (1.5, 4) if speed_boost else (1, 3)
             
             self.thruster_particles.append(
                 Particle(thruster_x, thruster_y, thruster_color, 
@@ -217,7 +225,7 @@ class Player:
         # Engine flicker effect
         self.engine_flicker = (self.engine_flicker + 1) % 10
     
-    def draw(self, surface, active_powerups):
+    def draw(self, surface: Surface, active_powerups: Dict[str, Dict[str, Any]]) -> None:
         # Draw thruster particles behind ship
         for particle in self.thruster_particles:
             particle.draw(surface)
@@ -226,8 +234,8 @@ class Player:
         if len(self.trail) > 1:
             for i in range(len(self.trail) - 1):
                 # Calculate trail opacity based on position
-                alpha = int(255 * (i / len(self.trail)))
-                color = (min(255, self.color[0]), 
+                alpha: int = int(255 * (i / len(self.trail)))
+                color: Tuple[int, int, int] = (min(255, self.color[0]), 
                          min(255, self.color[1]), 
                          min(255, self.color[2]))
                 
@@ -237,7 +245,7 @@ class Player:
                                 max(1, int((i / len(self.trail)) * 3)))
         
         # Draw ship
-        ship_points = [
+        ship_points: List[Tuple[float, float]] = [
             # Nose of the ship
             (self.x + math.cos(self.angle) * self.radius,
              self.y + math.sin(self.angle) * self.radius),
@@ -311,19 +319,26 @@ class Player:
 
 # Ball class with enhanced visuals
 class Ball:
-    def __init__(self, x, difficulty, is_homing=False, player_pos=None):
-        self.x = x
-        self.y = 0
-        self.is_homing = is_homing
-        self.player_pos = player_pos
-        self.particles = []
-        self.pulse_phase = random.uniform(0, math.pi * 2)  # Random starting phase
-        self.rotation = 0
-        self.rotation_speed = random.uniform(-0.1, 0.1)
+    def __init__(self, x: float, difficulty: float, is_homing: bool = False, 
+                 player_pos: Optional[List[float]] = None):
+        self.x: float = x
+        self.y: float = 0.0
+        self.is_homing: bool = is_homing
+        self.player_pos: Optional[List[float]] = player_pos
+        self.particles: List[Particle] = []
+        self.pulse_phase: float = random.uniform(0, math.pi * 2)  # Random starting phase
+        self.rotation: float = 0.0
+        self.rotation_speed: float = random.uniform(-0.1, 0.1)
+        self.radius: int = 0
+        self.speed: int = 0
+        self.color: Tuple[int, int, int] = WHITE  # Default, will be overridden
+        self.inner_color: Tuple[int, int, int] = WHITE  # Default, will be overridden
+        self.type: str = "small"  # Default, will be overridden
+        self.points: List[Tuple[float, float]] = []
         
         # Adjust ball size probabilities based on difficulty
-        size_chances = [0.7 - difficulty * 0.3, 0.2, 0.1 + difficulty * 0.3]  # [small, medium, large]
-        size_choice = random.choices([0, 1, 2], weights=size_chances)[0]
+        size_chances: List[float] = [0.7 - difficulty * 0.3, 0.2, 0.1 + difficulty * 0.3]  # [small, medium, large]
+        size_choice: int = random.choices([0, 1, 2], weights=size_chances)[0]
         
         if size_choice == 0:  # Small ball
             self.radius = random.randint(10, 20)
@@ -353,21 +368,21 @@ class Ball:
             
         # Create points for the asteroid shape
         self.points = []
-        num_points = random.randint(6, 10)
+        num_points: int = random.randint(6, 10)
         for i in range(num_points):
-            angle = i * (2 * math.pi / num_points)
+            angle: float = i * (2 * math.pi / num_points)
             # Vary the radius to create jagged edges
-            radius_var = self.radius * random.uniform(0.8, 1.2)
-            x_offset = math.cos(angle) * radius_var
-            y_offset = math.sin(angle) * radius_var
+            radius_var: float = self.radius * random.uniform(0.8, 1.2)
+            x_offset: float = math.cos(angle) * radius_var
+            y_offset: float = math.sin(angle) * radius_var
             self.points.append((x_offset, y_offset))
 
-    def update(self, time_factor=1.0):
+    def update(self, time_factor: float = 1.0) -> None:
         if self.is_homing and self.player_pos:
             # Calculate direction towards player
-            dx = self.player_pos[0] - self.x
-            dy = self.player_pos[1] - self.y
-            distance = max(1, math.sqrt(dx*dx + dy*dy))  # Avoid division by zero
+            dx: float = self.player_pos[0] - self.x
+            dy: float = self.player_pos[1] - self.y
+            distance: float = max(1, math.sqrt(dx*dx + dy*dy))  # Avoid division by zero
             
             # Normalize and apply speed
             self.x += (dx / distance) * self.speed * time_factor
@@ -381,6 +396,7 @@ class Ball:
         
         # Create trail particles occasionally
         if random.random() < 0.2:
+            particle_color: Tuple[int, int, int] = PURPLE  # Default
             if self.type == "small":
                 particle_color = BLUE
             elif self.type == "medium":
@@ -402,7 +418,7 @@ class Ball:
             if particle.life <= 0:
                 self.particles.remove(particle)
     
-    def draw(self, surface):
+    def draw(self, surface: Surface) -> None:
         # Draw particles first (behind the ball)
         for particle in self.particles:
             particle.draw(surface)
@@ -459,16 +475,18 @@ class Ball:
 
 # PowerUp class with enhanced visuals
 class PowerUp:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-        self.radius = 15
-        self.type = random.choice(["invincible", "slow", "reflect", "speed"])
-        self.active = True
-        self.speed = 2
-        self.particles = []
-        self.angle = 0
-        self.pulse_phase = random.uniform(0, math.pi * 2)
+    def __init__(self, x: float, y: float):
+        self.x: float = x
+        self.y: float = y
+        self.radius: int = 15
+        self.type: str = random.choice(["invincible", "slow", "reflect", "speed"])
+        self.active: bool = True
+        self.speed: float = 2.0
+        self.particles: List[Particle] = []
+        self.angle: float = 0.0
+        self.pulse_phase: float = random.uniform(0, math.pi * 2)
+        self.color: Tuple[int, int, int] = WHITE  # Default, will be overridden
+        self.inner_color: Tuple[int, int, int] = WHITE  # Default, will be overridden
         
         # Set color based on power-up type
         if self.type == "invincible":
@@ -484,7 +502,7 @@ class PowerUp:
             self.color = YELLOW
             self.inner_color = (200, 200, 0)
     
-    def update(self):
+    def update(self) -> None:
         self.y += self.speed
         self.angle += 0.05  # Rotate the power-up
         
@@ -502,7 +520,7 @@ class PowerUp:
             if particle.life <= 0:
                 self.particles.remove(particle)
     
-    def draw(self, surface):
+    def draw(self, surface: Surface) -> None:
         if not self.active:
             return
         
@@ -595,31 +613,34 @@ class PowerUp:
             pygame.draw.lines(surface, WHITE, False, bolt_points, 2)
 
 # Explosion effect
-def create_explosion(x, y, color, count=20, size_range=(2, 5), speed_range=(1, 3)):
-    particles = []
+def create_explosion(x: float, y: float, color: Tuple[int, int, int], 
+                    count: int = 20, 
+                    size_range: Tuple[float, float] = (2, 5), 
+                    speed_range: Tuple[float, float] = (1, 3)) -> List[Particle]:
+    particles: List[Particle] = []
     for _ in range(count):
-        angle = random.uniform(0, math.pi * 2)
-        speed = random.uniform(speed_range[0], speed_range[1])
-        vel_x = math.cos(angle) * speed
-        vel_y = math.sin(angle) * speed
-        size = random.uniform(size_range[0], size_range[1])
-        life = random.randint(20, 40)
+        angle: float = random.uniform(0, math.pi * 2)
+        speed: float = random.uniform(speed_range[0], speed_range[1])
+        vel_x: float = math.cos(angle) * speed
+        vel_y: float = math.sin(angle) * speed
+        size: float = random.uniform(size_range[0], size_range[1])
+        life: int = random.randint(20, 40)
         
         particles.append(Particle(x, y, color, velocity=(vel_x, vel_y), size=size, life=life))
     
     return particles
 
 # Start screen with enhanced visuals
-def start_screen():
+def start_screen() -> str:
     # Create stars for background
-    stars = [Star() for _ in range(100)]
+    stars: List[Star] = [Star() for _ in range(100)]
     
     # Title animation variables
-    title_scale = 0
-    title_target_scale = 1.0
+    title_scale: float = 0.0
+    title_target_scale: float = 1.0
     
     # Button animation
-    button_pulse = 0
+    button_pulse: float = 0.0
     
     # Fonts
     title_font = pygame.font.SysFont(None, 100)
@@ -627,7 +648,7 @@ def start_screen():
     font_small = pygame.font.SysFont(None, 36)
     
     # Particles
-    particles = []
+    particles: List[Particle] = []
     
     # Title text
     title_text = title_font.render("COSMIC DODGE", True, NEON_BLUE)
@@ -792,33 +813,33 @@ def start_screen():
     return difficulty
 
 # Game loop with enhanced visuals
-def game(difficulty_level):
+def game(difficulty_level: str) -> None:
     # Game variables
-    balls = []
-    powerups = []
-    explosion_particles = []
-    score = 0
-    start_time = time.time()
-    last_score_update = start_time
-    ball_spawn_timer = 0
-    homing_ball_timer = 0
-    powerup_timer = 0
-    game_over = False
+    balls: List[Ball] = []
+    powerups: List[PowerUp] = []
+    explosion_particles: List[Particle] = []
+    score: int = 0
+    start_time: float = time.time()
+    last_score_update: float = start_time
+    ball_spawn_timer: int = 0
+    homing_ball_timer: int = 0
+    powerup_timer: int = 0
+    game_over: bool = False
     clock = pygame.time.Clock()
     
     # Create stars for background
-    stars = [Star() for _ in range(100)]
+    stars: List[Star] = [Star() for _ in range(100)]
     
     # Create player
-    player = Player(WIDTH // 2, HEIGHT // 2)
+    player: Player = Player(WIDTH // 2, HEIGHT // 2)
     
     # Dynamic difficulty variables
-    player_skill = 0.5  # Start at medium skill level (0.0 to 1.0)
-    near_miss_count = 0
-    last_near_miss_check = time.time()
+    player_skill: float = 0.5  # Start at medium skill level (0.0 to 1.0)
+    near_miss_count: int = 0
+    last_near_miss_check: float = time.time()
     
     # Power-up status
-    active_powerups = {
+    active_powerups: Dict[str, Dict[str, Any]] = {
         "invincible": {"active": False, "end_time": 0},
         "slow": {"active": False, "end_time": 0},
         "reflect": {"active": False, "end_time": 0},
@@ -1125,6 +1146,11 @@ def game(difficulty_level):
             g = int(255 * (1 - (difficulty - 0.5) / 0.5))
             b = 0
         
+        # Ensure color values are valid integers
+        r = max(0, min(255, int(r)))
+        g = max(0, min(255, int(g)))
+        b = max(0, min(255, int(b)))
+        
         pygame.draw.rect(screen, (r, g, b), (bar_x, bar_y, fill_width, bar_height))
         
         # Display active power-ups with countdown
@@ -1176,7 +1202,8 @@ def game(difficulty_level):
         if game_over:
             # Semi-transparent overlay
             overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-            overlay.fill((0, 0, 0, min(150, game_over_alpha)))
+            overlay_alpha = min(150, int(game_over_alpha))
+            overlay.fill((0, 0, 0, overlay_alpha))
             screen.blit(overlay, (0, 0))
             
             # Game over text with scale animation
@@ -1201,11 +1228,10 @@ def game(difficulty_level):
             # Restart instruction with pulse
             if game_over_alpha > 150:
                 pulse = (math.sin(current_time * 5) + 1) * 0.5
-                restart_color = (
-                    int(GREEN[0] * pulse + 100),
-                    int(GREEN[1] * pulse + 100),
-                    int(GREEN[2] * pulse + 100)
-                )
+                r = max(0, min(255, int(GREEN[0] * pulse + 100)))
+                g = max(0, min(255, int(GREEN[1] * pulse + 100)))
+                b = max(0, min(255, int(GREEN[2] * pulse + 100)))
+                restart_color = (r, g, b)
                 restart_text = font.render("Press R to return to menu", True, restart_color)
                 screen.blit(restart_text, 
                            (WIDTH // 2 - restart_text.get_width() // 2, 
@@ -1215,9 +1241,9 @@ def game(difficulty_level):
         clock.tick(60)
 
 # Main loop
-def main():
+def main() -> None:
     while True:
-        difficulty = start_screen()
+        difficulty: str = start_screen()
         game(difficulty)
 
 if __name__ == "__main__":
